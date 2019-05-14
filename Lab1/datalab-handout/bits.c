@@ -253,7 +253,13 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  return 0;
+  int base = 0;
+  base += ((!!((x >> 15) ^ (x >> 31))) << 4);
+  base += ((!!((x >> (base + 7)) ^ (x >> (base + 15)))) << 3);
+  base += ((!!((x >> (base + 3)) ^ (x >> (base + 7)))) << 2);
+  base += ((!!((x >> (base + 1)) ^ (x >> (base + 3)))) << 1);
+  base += (!!((x >> base) ^ (x >> (base + 1))));
+  return base + 1;
 }
 //float
 /* 
@@ -268,7 +274,25 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  unsigned result = 0;
+  unsigned ebits = 0x7F800000u;
+  unsigned fbits = 0x007FFFFFu;
+  unsigned s = 0x80000000u & uf;
+  unsigned e = uf & ebits;
+  unsigned f = uf & fbits;
+  if (e) {
+    if ((!(e ^ 0x7F800000u)) && f) {
+      return uf;
+    }
+    if (!((e + 0x00800000u) ^ 0x7F800000u) || !(e ^ 0x7F800000u)) {
+      result = s + 0x7F800000u;
+    } else {
+      result = uf + 0x00800000u;
+    }
+  } else {
+    result = s + (uf << 1);
+  }
+  return result;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -283,7 +307,27 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  unsigned e = uf & 0x7F800000u;
+  unsigned f = uf & 0x007FFFFFu;
+  unsigned s = uf & 0x80000000u;
+  if (!(e & 0x40000000)) {    // absolute value < 2
+    if (!(e ^ 0x3F800000)) {    // absolute value < 2 and >= 1
+      return s? -1 : 1;
+    }
+    return 0;    // absolute value < 1
+  }
+  if (!(e ^ 0x7F800000)) {    // NaN of infinity
+    return 0x80000000u;
+  }
+  int E = (e >> 23) + 0xFFFFFF81u;
+  if (!(E ^ 0x0000001F) || (E & 0xFFFFFFE0)) {    // out of int's range
+    return 0x80000000u;
+  }
+  int result = (0x1u << E) + (f >> (23 + (~E + 1)));    // 1*2^E + f*2^E
+  if (s) {
+    result = ~result + 1;
+  }
+  return result;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -299,5 +343,6 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
+
     return 2;
 }
